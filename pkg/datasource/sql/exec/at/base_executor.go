@@ -22,10 +22,10 @@ import (
 	"database/sql"
 	"database/sql/driver"
 	"fmt"
-	"regexp"
 	"strings"
 
 	"github.com/arana-db/parser/ast"
+	"github.com/arana-db/parser/format"
 	"github.com/arana-db/parser/model"
 	"github.com/arana-db/parser/test_driver"
 	gxsort "github.com/dubbogo/gost/sort"
@@ -43,8 +43,6 @@ import (
 type baseExecutor struct {
 	hooks []exec.SQLHook
 }
-
-var mysqlStringLiteralForPostgresPattern = regexp.MustCompile(`_UTF8MB4([[:alnum:]_]+)`)
 
 func (b *baseExecutor) beforeHooks(ctx context.Context, execCtx *types.ExecContext) error {
 	for _, hook := range b.hooks {
@@ -172,9 +170,17 @@ func (b *baseExecutor) normalizeGeneratedSQL(query string, dbType types.DBType) 
 	dbType = effectiveDBType(dbType)
 	if dbType == types.DBTypePostgreSQL {
 		query = strings.Replace(query, "SELECT SQL_NO_CACHE ", "SELECT ", 1)
-		query = mysqlStringLiteralForPostgresPattern.ReplaceAllString(query, "'$1'")
+		query = util.StripPostgreSQLStringCharset(query)
 	}
 	return util.RewritePlaceholders(query, dbType)
+}
+
+func restoreFlagsForDB(dbType types.DBType) format.RestoreFlags {
+	flags := format.RestoreKeyWordUppercase
+	if effectiveDBType(dbType) == types.DBTypePostgreSQL {
+		flags |= format.RestoreStringSingleQuotes
+	}
+	return flags
 }
 
 func (b *baseExecutor) buildSelectArgs(stmt *ast.SelectStmt, args []driver.NamedValue) []driver.NamedValue {
