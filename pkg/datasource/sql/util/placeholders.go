@@ -124,7 +124,14 @@ func CompactPostgreSQLPlaceholders(query string, args []driver.NamedValue) (stri
 // following placeholder compaction must still see the literal quotes.
 func StripPostgreSQLStringCharset(query string) string {
 	const utf8mb4 = "_UTF8MB4"
-	if !strings.Contains(strings.ToUpper(query), utf8mb4) {
+	found := false
+	for i := 0; i+len(utf8mb4) < len(query); i++ {
+		if hasPostgreSQLUTF8MB4StringIntroducer(query, i) {
+			found = true
+			break
+		}
+	}
+	if !found {
 		return query
 	}
 
